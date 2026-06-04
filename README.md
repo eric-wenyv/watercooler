@@ -1,8 +1,13 @@
 # WaterCooler
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 WaterCooler is a Linux desktop utility for controlling `CoolingSystem` BLE water cooler devices.
 
-The project is developed for Users who want a simple and lightweight app to control water cooler on Linux desktop. My desktop is MECHREVO and I test it on Fedora. It should work on other distributions with similar watercooler system.
+The project is developed for Users who want a simple and lightweight app to control water cooler on Linux desktop. My laptop is MECHREVO and I test it on Fedora. It should work on other distributions with similar watercooler system.
+
+## tl;dr
+use AI to read documentation.
 
 ## Overview
 
@@ -19,24 +24,18 @@ It uses the higher of the two values to calculate a target speed, then writes fa
 
 ### 1. Install WaterCooler
 
-From the project directory:
+From GitHub:
 
 ```bash
-bash scripts/install-user.sh
+curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user.sh | bash
 ```
+
 It creates:
 
 - Command: `~/.local/bin/watercooler`
 - Desktop launcher: `~/.local/share/applications/watercooler.desktop`
 - Icon: `~/.local/share/icons/hicolor/scalable/apps/watercooler.svg`
 - Private virtual environment: `~/.local/share/watercooler/venv`
-- User systemd service: `~/.config/systemd/user/watercooler.service`
-
-If `~/.local/bin` is not in your `PATH`, add this to your shell profile:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
 
 ### 2. Run Once Interactively
 
@@ -50,6 +49,20 @@ The selected device and LED settings are saved to:
 
 ```text
 ~/.config/watercooler/settings.json
+```
+
+### 3. Optional: Register User Service
+
+After the first successful device selection, register the systemd user service:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user-service.sh | bash
+```
+
+### 4. Uninstall
+
+```bash
+watercooler --uninstall
 ```
 
 ## Project Structure

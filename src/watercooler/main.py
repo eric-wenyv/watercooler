@@ -1,6 +1,10 @@
+import argparse
 import asyncio
+import os
+import shutil
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -9,6 +13,57 @@ from .config_manager import CoolerConfig, DeviceConfig
 from .constant import CONFIG_FILE, RX_UUID, TX_UUID
 from .light import set_head_led, turn_off_leds
 from .tray_icon import TRAY_AVAILABLE, TrayIcon
+
+
+def _data_home() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")).expanduser()
+
+
+def _config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser()
+
+
+def _run_quiet(command: list[str]) -> None:
+    try:
+        subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except FileNotFoundError:
+        pass
+
+
+def uninstall() -> None:
+    data_home = _data_home()
+    config_home = _config_home()
+    bin_home = Path.home() / ".local/bin"
+
+    _run_quiet(["systemctl", "--user", "disable", "--now", "watercooler.service"])
+
+    for path in (
+        config_home / "systemd/user/watercooler.service",
+        data_home / "applications/watercooler.desktop",
+        data_home / "icons/hicolor/scalable/apps/watercooler.svg",
+        bin_home / "watercooler",
+    ):
+        try:
+            path.unlink(missing_ok=True)
+        except IsADirectoryError:
+            shutil.rmtree(path, ignore_errors=True)
+
+    shutil.rmtree(data_home / "watercooler", ignore_errors=True)
+
+    if shutil.which("update-desktop-database"):
+        _run_quiet(["update-desktop-database", str(data_home / "applications")])
+
+    if shutil.which("gtk-update-icon-cache"):
+        _run_quiet(["gtk-update-icon-cache", str(data_home / "icons/hicolor")])
+
+    _run_quiet(["systemctl", "--user", "daemon-reload"])
+
+    print("Uninstalled WaterCooler.")
 
 
 def notification_handler(sender, data) -> None:
@@ -287,7 +342,22 @@ async def main():
             print(f"Disconnect error: {e}")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Control CoolingSystem BLE water cooler devices")
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="remove the user installation, desktop entry, icon, and systemd user service",
+    )
+    return parser.parse_args()
+
+
 def run() -> None:
+    args = parse_args()
+    if args.uninstall:
+        uninstall()
+        return
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
