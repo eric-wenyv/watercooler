@@ -3,6 +3,7 @@ import subprocess
 from datetime import datetime
 
 from bleak import BleakClient, BleakScanner
+from bleak.backends.device import BLEDevice
 
 from config_manager import CoolerConfig, DeviceConfig
 from constant import CONFIG_FILE, RX_UUID, TX_UUID
@@ -68,39 +69,77 @@ def cal_cooling_speed(current_temp: float) -> int:
         return int(MIN_SPEED + (current_temp - MIN_TEMP) / rate)
 
 
+async def rescan_devices() -> list[BLEDevice]:
+    devices = await BleakScanner.discover()
+
+    cooling_devices = []
+    for d in devices:
+        if d.name and "CoolingSystem" in d.name:
+            cooling_devices.append(d)
+
+    if not cooling_devices:
+        print("Did not find any cooling devices.")
+    return cooling_devices
+
+
+async def initialize_cooler(client: BleakClient, config: CoolerConfig) -> None:
+    # subscribe to RX notifications
+    await client.start_notify(RX_UUID, notification_handler)
+
+    print("Try to handshake with device ...")
+    await client.write_gatt_char(TX_UUID, b"sw")
+    await asyncio.sleep(1.0)
+
+    print("Try to set head LED ...")
+    led = config.led
+    await set_head_led(client, led.r, led.g, led.b, led.mode)
+    await asyncio.sleep(1.0)
+
+
 async def main():
     loop = asyncio.get_event_loop()
     main_task = asyncio.current_task()
+    command_queue = asyncio.Queue()
 
     def request_stop():
         if main_task and not main_task.done():
             loop.call_soon_threadsafe(main_task.cancel)
 
+    def request_set_led_mode(mode: int):
+        loop.call_soon_threadsafe(command_queue.put_nowait, ("set_led_mode", mode))
+
+    def request_select_device(address: str):
+        loop.call_soon_threadsafe(command_queue.put_nowait, ("select_device", address))
+
+    def request_rescan_devices():
+        loop.call_soon_threadsafe(command_queue.put_nowait, ("rescan_devices", None))
+
     tray = None
     config = CoolerConfig.load(CONFIG_FILE)
     if config.tray.enabled and TRAY_AVAILABLE:
-        tray = TrayIcon(on_exit=request_stop)
+        tray = TrayIcon(
+            on_exit=request_stop,
+            on_rescan_devices=request_rescan_devices,
+            on_select_device=request_select_device,
+            on_set_led_mode=request_set_led_mode,
+        )
+        tray.set_led_mode(config.led.mode)
         tray.start()
 
     # scan devices
     print("Scanning...")
-    devices = await BleakScanner.discover()
-    target_device = None
+    cooling_devices = await rescan_devices()
+    known_devices = {d.address: d for d in cooling_devices}
 
-    cooling_devices = []
-    for d in devices:
-        if d.name and "CoolingSystem" in d.name:
-            target_device = d
-            cooling_devices.append(d)
+    if tray:
+        tray.set_scanned_devices(cooling_devices)
 
     if not cooling_devices:
-        print("Did not find any cooling devices.")
         return
 
     target_device = None
-    cooling_devices_address = [d.address for d in cooling_devices]
-    if config.last_device.address in cooling_devices_address:
-        target_device = config.last_device
+    if config.last_device.address in known_devices:
+        target_device = known_devices[config.last_device.address]
     else:
         if not config.last_device.address or config.last_device.address == "":
             print("No previous device found.")
@@ -115,34 +154,34 @@ async def main():
 
         target_device = cooling_devices[device_index]
 
-    if target_device.address != config.last_device.address:
+    target_name = target_device.name or target_device.address
+    if (
+        target_device.address != config.last_device.address
+        or target_name != config.last_device.name
+    ):
         config.last_device = DeviceConfig(
-            name=target_device.name,
+            name=target_name,
             address=target_device.address,
             connected_at=datetime.now(),
         )
         CoolerConfig.save(CONFIG_FILE, config)
 
+    if tray:
+        tray.set_device_status(target_name)
+
     # connect to device
-    async with BleakClient(target_device.address) as client:
-        print(f"Connected to: {target_device.name}")
+    client = BleakClient(target_device.address)
+    await client.connect()
+    try:
+        print(f"Connected to: {target_name}")
 
         if tray:
-            tray.set_status(f"Connected to: {target_device.name}")
+            tray.set_status(f"Connected to: {target_name}")
 
-        # subscribe to RX notifications
-        await client.start_notify(RX_UUID, notification_handler)
-
-        print("Try to handshake with device ...")
-        await client.write_gatt_char(TX_UUID, b"sw")
-        await asyncio.sleep(1.0)
-
-        print("Try to set head LED ...")
-        led = config.led
-        await set_head_led(client, led.r, led.g, led.b, led.mode)
-        await asyncio.sleep(1.0)
+        await initialize_cooler(client, config)
 
         last_speed = 0
+
         try:
             while True:
                 cpu_temp = get_CPU_temperature()
@@ -171,6 +210,55 @@ async def main():
                 else:
                     print(f"Fan speed: {target_speed}%, no change needed.")
 
+                try:
+                    async with asyncio.timeout(1.0):
+                        cmd, payload = await command_queue.get()
+                except asyncio.TimeoutError:
+                    cmd, payload = None, None
+                if cmd == "set_led_mode" and payload is not None:
+                    led_mode = int(payload)
+                    config.led.mode = led_mode
+                    CoolerConfig.save(CONFIG_FILE, config)
+
+                    led = config.led
+                    await set_head_led(client, led.r, led.g, led.b, led.mode)
+
+                    if tray:
+                        tray.set_led_mode(led_mode)
+                elif cmd == "select_device" and payload:
+                    selected_address = str(payload)
+                    selected_device = known_devices.get(selected_address)
+                    selected_name = (
+                        selected_device.name
+                        if selected_device and selected_device.name
+                        else selected_address
+                    )
+
+                    config.last_device = DeviceConfig(
+                        name=selected_name,
+                        address=selected_address,
+                        connected_at=datetime.now(),
+                    )
+                    CoolerConfig.save(CONFIG_FILE, config)
+
+                    await shutdown(client)
+                    await client.disconnect()
+                    await asyncio.sleep(0.1)
+
+                    client = BleakClient(selected_address)
+                    await client.connect()
+                    await initialize_cooler(client, config)
+                    last_speed = 0
+
+                    if tray:
+                        tray.set_device_status(selected_name)
+                        tray.set_status(f"Connected to: {selected_name}")
+                elif cmd == "rescan_devices":
+                    devices = await rescan_devices()
+                    known_devices = {d.address: d for d in devices}
+                    if tray:
+                        tray.set_scanned_devices(devices)
+
                 await asyncio.sleep(5)
 
         except asyncio.CancelledError:
@@ -192,6 +280,11 @@ async def main():
             except Exception as e:
                 print(f"Error: {e}")
             print("Closed.")
+    finally:
+        try:
+            await client.disconnect()
+        except Exception as e:
+            print(f"Disconnect error: {e}")
 
 
 if __name__ == "__main__":
