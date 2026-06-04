@@ -1,9 +1,11 @@
 import asyncio
 import subprocess
+from datetime import datetime
 
 from bleak import BleakClient, BleakScanner
 
-from constant import LED_RAINBOW, RX_UUID, TX_UUID
+from config_manager import CoolerConfig, DeviceConfig
+from constant import CONFIG_FILE, RX_UUID, TX_UUID
 from light import set_head_led, turn_off_leds
 
 
@@ -81,17 +83,31 @@ async def main():
         print("Did not find any cooling devices.")
         return
 
-    # select device
-    print("Select your devices: ")
-    for i, d in enumerate(cooling_devices):
-        print(f"{i + 1}. {d.name} [{d.address}]")
+    config = CoolerConfig.load(CONFIG_FILE)
+    target_device = None
+    if config.last_device.address in cooling_devices:
+        target_device = config.last_device
+    else:
+        if not config.last_device.address or config.last_device.address == "":
+            print("No previous device found.")
+        print("Select your new devices: ")
+        for i, d in enumerate(cooling_devices):
+            print(f"{i + 1}. {d.name} [{d.address}]")
 
-    device_index = int(input("Enter the device number to connect: ")) - 1
-    if device_index < 0 or device_index >= len(cooling_devices):
-        print("Invalid device number.")
-        return
+        device_index = int(input("Enter the device number to connect: ")) - 1
+        if device_index < 0 or device_index >= len(cooling_devices):
+            print("Invalid device number.")
+            return
 
-    target_device = cooling_devices[device_index]
+        target_device = cooling_devices[device_index]
+
+    if target_device.address != config.last_device.address:
+        config.last_device = DeviceConfig(
+            name=target_device.name,
+            address=target_device.address,
+            connected_at=datetime.now(),
+        )
+        CoolerConfig.save(CONFIG_FILE, config)
 
     # connect to device
     async with BleakClient(target_device.address) as client:
@@ -105,7 +121,8 @@ async def main():
         await asyncio.sleep(1.0)
 
         print("Try to set head LED ...")
-        await set_head_led(client, 255, 0, 0, LED_RAINBOW)
+        led = config.led
+        await set_head_led(client, led.r, led.g, led.b, led.mode)
         await asyncio.sleep(1.0)
 
         last_speed = 0

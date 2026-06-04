@@ -1,14 +1,14 @@
 import asyncio
 
-from constant import LED_STATIC, TX_UUID
+from constant import TX_UUID
 
 
-async def set_head_led(client, r: int, g: int, b: int, mode: int = LED_STATIC):
+async def set_head_led(client, r: int, g: int, b: int, mode: int = 0x00):
     cmd = bytearray([0xFE, 0x1E, 0x01, r, g, b, mode, 0xEF])
     await client.write_gatt_char(TX_UUID, cmd)
 
 
-async def set_fan_led(client, r: int, g: int, b: int, mode: int = LED_STATIC):
+async def set_fan_led(client, r: int, g: int, b: int, mode: int = 0x00):
     cmd = bytearray([0xFE, 0x33, 0x01, r, g, b, mode, 0xEF])
     await client.write_gatt_char(TX_UUID, cmd)
 

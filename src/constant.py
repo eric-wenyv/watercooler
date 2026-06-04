@@ -1,7 +1,5 @@
-LED_STATIC = 0x00
-LED_BREATHING = 0x01
-LED_RAINBOW = 0x02
-
 SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 TX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 RX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+
+CONFIG_FILE = "~/.config/watercooler/settings.json"
