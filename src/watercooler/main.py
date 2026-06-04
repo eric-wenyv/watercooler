@@ -5,10 +5,10 @@ from datetime import datetime
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
 
-from config_manager import CoolerConfig, DeviceConfig
-from constant import CONFIG_FILE, RX_UUID, TX_UUID
-from light import set_head_led, turn_off_leds
-from tray_icon import TRAY_AVAILABLE, TrayIcon
+from .config_manager import CoolerConfig, DeviceConfig
+from .constant import CONFIG_FILE, RX_UUID, TX_UUID
+from .light import set_head_led, turn_off_leds
+from .tray_icon import TRAY_AVAILABLE, TrayIcon
 
 
 def notification_handler(sender, data) -> None:
@@ -287,8 +287,12 @@ async def main():
             print(f"Disconnect error: {e}")
 
 
-if __name__ == "__main__":
+def run() -> None:
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nInterrupted.")
+
+
+if __name__ == "__main__":
+    run()

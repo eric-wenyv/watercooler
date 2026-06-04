@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "watercooler-controller"
+version = "0.1.0"
+description = "BLE controller for CoolingSystem water cooler devices"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "bleak>=3.0.2",
+    "Pillow>=12.2.0",
+]
+
+[project.scripts]
+watercooler = "watercooler.main:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,6 +1,6 @@
 import asyncio
 
-from constant import TX_UUID
+from .constant import TX_UUID
 
 
 async def set_head_led(client, r: int, g: int, b: int, mode: int = 0x00):
