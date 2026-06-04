@@ -5,6 +5,11 @@ from datetime import datetime
 
 
 @dataclass
+class TrayConfig:
+    enabled: bool = False
+
+
+@dataclass
 class DeviceConfig:
     name: str
     address: str
@@ -23,6 +28,7 @@ class LEDConfig:
 class CoolerConfig:
     last_device: DeviceConfig
     led: LEDConfig
+    tray: TrayConfig
 
     @classmethod
     def load(cls, filepath: str) -> "CoolerConfig":
@@ -44,10 +50,13 @@ class CoolerConfig:
                 address=last_device.get("address", ""),
                 connected_at=connected_at,
             )
-            return cls(last_device=last_device_obj, led=led_obj)
+            tray = data.get("tray", {})
+            tray_obj = TrayConfig(**tray)
+            return cls(last_device=last_device_obj, led=led_obj, tray=tray_obj)
         return cls(
             last_device=DeviceConfig(name="", address="", connected_at=datetime.now()),
             led=LEDConfig(2, 255, 0, 0),
+            tray=TrayConfig(),
         )
 
     @classmethod

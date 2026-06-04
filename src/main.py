@@ -7,6 +7,7 @@ from bleak import BleakClient, BleakScanner
 from config_manager import CoolerConfig, DeviceConfig
 from constant import CONFIG_FILE, RX_UUID, TX_UUID
 from light import set_head_led, turn_off_leds
+from tray_icon import TRAY_AVAILABLE, TrayIcon
 
 
 def notification_handler(sender, data) -> None:
@@ -68,6 +69,19 @@ def cal_cooling_speed(current_temp: float) -> int:
 
 
 async def main():
+    loop = asyncio.get_event_loop()
+    main_task = asyncio.current_task()
+
+    def request_stop():
+        if main_task and not main_task.done():
+            loop.call_soon_threadsafe(main_task.cancel)
+
+    tray = None
+    config = CoolerConfig.load(CONFIG_FILE)
+    if config.tray.enabled and TRAY_AVAILABLE:
+        tray = TrayIcon(on_exit=request_stop)
+        tray.start()
+
     # scan devices
     print("Scanning...")
     devices = await BleakScanner.discover()
@@ -83,9 +97,9 @@ async def main():
         print("Did not find any cooling devices.")
         return
 
-    config = CoolerConfig.load(CONFIG_FILE)
     target_device = None
-    if config.last_device.address in cooling_devices:
+    cooling_devices_address = [d.address for d in cooling_devices]
+    if config.last_device.address in cooling_devices_address:
         target_device = config.last_device
     else:
         if not config.last_device.address or config.last_device.address == "":
@@ -113,6 +127,9 @@ async def main():
     async with BleakClient(target_device.address) as client:
         print(f"Connected to: {target_device.name}")
 
+        if tray:
+            tray.set_status(f"Connected to: {target_device.name}")
+
         # subscribe to RX notifications
         await client.start_notify(RX_UUID, notification_handler)
 
@@ -134,6 +151,9 @@ async def main():
 
                 target_speed = cal_cooling_speed(curr_temp)
                 print(f"Current temp: {curr_temp}°C, target speed: {target_speed}%")
+
+                if tray:
+                    tray.set_status(f"{curr_temp}°C | {target_speed}% ")
 
                 if abs(target_speed - last_speed) >= 3:
                     fan_cmd = bytearray(
@@ -157,6 +177,8 @@ async def main():
             pass
         finally:
             print("\n Closing device...")
+            if tray:
+                tray.stop()
             try:
                 await turn_off_leds(client)
                 await asyncio.sleep(0.1)
