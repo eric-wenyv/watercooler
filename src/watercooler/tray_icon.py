@@ -10,19 +10,6 @@ from bleak.backends.device import BLEDevice
 GLib: Any = None
 Gtk: Any = None
 AppIndicator: Any = None
-Image: Any = None
-ImageDraw: Any = None
-
-try:
-    from PIL import Image as _Image
-    from PIL import ImageDraw as _ImageDraw
-
-    Image = _Image
-    ImageDraw = _ImageDraw
-
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
 
 try:
     import gi
@@ -51,58 +38,7 @@ try:
 except Exception:
     APPINDICATOR_AVAILABLE = False
 
-TRAY_AVAILABLE = PIL_AVAILABLE and APPINDICATOR_AVAILABLE
-
-
-def _create_icon(size: int = 64) -> "Image.Image":  # pyright: ignore[reportInvalidTypeForm]
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-
-    cx, cy = size // 2, size // 2
-    r = size // 2 - 2
-
-    # outer ring
-    draw.ellipse(
-        [cx - r, cy - r, cx + r, cy + r],
-        outline=(66, 165, 245),
-        width=max(1, size // 16),
-    )
-
-    # cross blades
-    blade = r - size // 8
-    draw.line(
-        [(cx, cy - blade), (cx, cy + blade)],
-        fill=(66, 165, 245),
-        width=max(1, size // 20),
-    )
-    draw.line(
-        [(cx - blade, cy), (cx + blade, cy)],
-        fill=(66, 165, 245),
-        width=max(1, size // 20),
-    )
-
-    # center dot
-    cr = max(2, size // 10)
-    draw.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], fill=(66, 165, 245))
-
-    return image
-
-
-def _icon_cache_dir() -> Path:
-    cache_home = Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser()
-    return cache_home / "watercooler" / "icons"
-
-
-def _ensure_icon_file() -> tuple[str, str]:
-    icon_dir = _icon_cache_dir()
-    icon_dir.mkdir(parents=True, exist_ok=True)
-    icon_name = "watercooler"
-    icon_path = icon_dir / f"{icon_name}.png"
-
-    if not icon_path.exists():
-        _create_icon().save(icon_path, "PNG")
-
-    return str(icon_dir), icon_name
+TRAY_AVAILABLE = APPINDICATOR_AVAILABLE
 
 
 class TrayIcon:
@@ -242,14 +178,16 @@ class TrayIcon:
             print("System tray unavailable: GTK could not be initialized.")
             return
 
-        icon_dir, icon_name = _ensure_icon_file()
+        icon_dir = Path(
+            os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")
+        ).expanduser() / "icons/hicolor/scalable/apps"
         self._indicator = AppIndicator.Indicator.new(
             "watercooler",
-            icon_name,
+            "watercooler",
             AppIndicator.IndicatorCategory.APPLICATION_STATUS,
         )
-        self._indicator.set_icon_theme_path(icon_dir)
-        self._indicator.set_icon_full(icon_name, "WaterCooler")
+        self._indicator.set_icon_theme_path(str(icon_dir))
+        self._indicator.set_icon_full("watercooler", "WaterCooler")
         self._indicator.set_title(self._status_text)
         self._indicator.set_menu(self._build_gtk_menu())
         self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)

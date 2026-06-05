@@ -37,7 +37,7 @@ After=bluetooth.target graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=$VENV_DIR/bin/watercooler --no-tray
+ExecStart=$VENV_DIR/bin/watercooler
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

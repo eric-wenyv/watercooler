@@ -46,9 +46,8 @@ Run WaterCooler once from a terminal so you can select the BLE device:
 watercooler
 ```
 
-After a device is saved, the desktop launcher starts WaterCooler without a terminal,
-enables the tray icon for that run, and appends output to the desktop log. If only
-one cooling device is found, a desktop launch can select it automatically.
+After a device is saved, the desktop launcher starts WaterCooler without a terminal
+and appends output to the desktop log.
 
 The selected device and LED settings are saved to:
 
@@ -64,7 +63,7 @@ After the first successful device selection, register the systemd user service:
 curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user-service.sh | bash
 ```
 
-The service runs with tray support disabled and writes to:
+The service writes to:
 
 ```text
 ~/.local/state/watercooler/watercooler.service.log
@@ -94,10 +93,6 @@ python -m watercooler
 
 ## Additional Notes
 
-The tray icon requires Pillow plus system GTK/AppIndicator bindings. The installer
-checks for those bindings and prints the detected tray support status. GNOME users
-may also need an AppIndicator/KStatusNotifierItem shell extension.
-
-Use `watercooler --tray` to force tray support for a foreground run, or
-`watercooler --no-tray` for service-style runs. If WaterCooler is running as a
-background systemd user service, keep tray support disabled.
+The tray icon requires system GTK/AppIndicator bindings. GNOME users may also need
+an AppIndicator/KStatusNotifierItem shell extension. Tray support is controlled by
+`tray.enabled` in `~/.config/watercooler/settings.json`.

@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "bleak>=3.0.2",
-    "Pillow>=12.2.0",
 ]
 
 [project.scripts]

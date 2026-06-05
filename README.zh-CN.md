@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts
 watercooler
 ```
 
-保存设备后，桌面启动器会在无终端窗口的后台启动 WaterCooler，为这次运行启用托盘，并把输出追加到桌面启动日志。如果只扫描到一个水冷设备，从桌面启动时也可以自动选择它。
+保存设备后，桌面启动器会在无终端窗口的后台启动 WaterCooler，并把输出追加到桌面启动日志。
 
 选中的设备和 LED 设置会保存到：
 
@@ -63,7 +63,7 @@ watercooler
 curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user-service.sh | bash
 ```
 
-服务会禁用托盘，并把输出写入：
+服务会把输出写入：
 
 ```text
 ~/.local/state/watercooler/watercooler.service.log
@@ -93,6 +93,4 @@ python -m watercooler
 
 ## 补充说明
 
-托盘图标需要 Pillow 以及系统 GTK/AppIndicator 绑定。安装脚本会检测这些绑定，并在安装结束时输出托盘支持状态。GNOME 用户可能还需要启用 AppIndicator/KStatusNotifierItem shell 扩展。
-
-可以用 `watercooler --tray` 为前台运行强制启用托盘，或用 `watercooler --no-tray` 进行类似服务的无托盘运行。如果 WaterCooler 以后台 systemd 用户服务运行，请保持托盘支持关闭。
+托盘图标需要系统 GTK/AppIndicator 绑定。GNOME 用户可能还需要启用 AppIndicator/KStatusNotifierItem shell 扩展。托盘是否启用由 `~/.config/watercooler/settings.json` 里的 `tray.enabled` 控制。
