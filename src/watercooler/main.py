@@ -16,11 +16,19 @@ from .tray_icon import TRAY_AVAILABLE, TrayIcon
 
 
 def _data_home() -> Path:
-    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")).expanduser()
+    return Path(
+        os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")
+    ).expanduser()
 
 
 def _config_home() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser()
+
+
+def _state_home() -> Path:
+    return Path(
+        os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")
+    ).expanduser()
 
 
 def _run_quiet(command: list[str]) -> None:
@@ -38,6 +46,7 @@ def _run_quiet(command: list[str]) -> None:
 def uninstall() -> None:
     data_home = _data_home()
     config_home = _config_home()
+    state_home = _state_home()
     bin_home = Path.home() / ".local/bin"
 
     _run_quiet(["systemctl", "--user", "disable", "--now", "watercooler.service"])
@@ -54,6 +63,7 @@ def uninstall() -> None:
             shutil.rmtree(path, ignore_errors=True)
 
     shutil.rmtree(data_home / "watercooler", ignore_errors=True)
+    shutil.rmtree(state_home / "watercooler", ignore_errors=True)
 
     if shutil.which("update-desktop-database"):
         _run_quiet(["update-desktop-database", str(data_home / "applications")])
@@ -343,7 +353,9 @@ async def main():
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Control CoolingSystem BLE water cooler devices")
+    parser = argparse.ArgumentParser(
+        description="Control CoolingSystem BLE water cooler devices"
+    )
     parser.add_argument(
         "--uninstall",
         action="store_true",

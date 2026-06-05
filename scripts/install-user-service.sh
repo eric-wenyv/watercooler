@@ -3,11 +3,14 @@ set -euo pipefail
 
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 
 APP_DIR="$DATA_HOME/watercooler"
 VENV_DIR="$APP_DIR/venv"
 SYSTEMD_USER_DIR="$CONFIG_HOME/systemd/user"
 SERVICE_FILE="$SYSTEMD_USER_DIR/watercooler.service"
+LOG_DIR="$STATE_HOME/watercooler"
+LOG_FILE="$LOG_DIR/watercooler.service.log"
 
 if [[ ! -x "$VENV_DIR/bin/watercooler" ]]; then
     cat >&2 <<EOF
@@ -25,7 +28,7 @@ EOF
     exit 1
 fi
 
-mkdir -p "$SYSTEMD_USER_DIR"
+mkdir -p "$SYSTEMD_USER_DIR" "$LOG_DIR"
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -34,10 +37,12 @@ After=bluetooth.target graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=$VENV_DIR/bin/watercooler
+ExecStart=$VENV_DIR/bin/watercooler --no-tray
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:$LOG_FILE
+StandardError=append:$LOG_FILE
 
 [Install]
 WantedBy=default.target
@@ -50,6 +55,9 @@ Registered WaterCooler user service.
 
 User service:
   $SERVICE_FILE
+
+Service log:
+  $LOG_FILE
 
 Enable background autostart:
   systemctl --user enable --now watercooler.service

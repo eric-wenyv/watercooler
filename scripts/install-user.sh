@@ -11,12 +11,16 @@ INSTALL_LOCAL="${WATERCOOLER_INSTALL_LOCAL:-0}"
 RAW_BASE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_REF"
 
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 BIN_HOME="$HOME/.local/bin"
 
 APP_DIR="$DATA_HOME/watercooler"
 VENV_DIR="$APP_DIR/venv"
+DESKTOP_LAUNCHER="$APP_DIR/watercooler-desktop"
 DESKTOP_DIR="$DATA_HOME/applications"
 ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
+LOG_DIR="$STATE_HOME/watercooler"
+LOG_FILE="$LOG_DIR/watercooler.log"
 
 PROJECT_DIR=""
 SOURCE_PATH="${BASH_SOURCE[0]:-}"
@@ -94,7 +98,29 @@ install_icon() {
     write_fallback_icon
 }
 
-mkdir -p "$APP_DIR" "$BIN_HOME" "$DESKTOP_DIR" "$ICON_DIR"
+check_tray_support() {
+    if "$VENV_DIR/bin/python" - <<'PY' >/dev/null 2>&1
+from PIL import Image, ImageDraw
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+
+try:
+    gi.require_version("AppIndicator3", "0.1")
+    from gi.repository import AppIndicator3
+except (ImportError, ValueError):
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3
+PY
+    then
+        echo "available"
+    else
+        echo "unavailable (install PyGObject plus AppIndicator/Ayatana AppIndicator bindings; GNOME may also need an AppIndicator extension)"
+    fi
+}
+
+mkdir -p "$APP_DIR" "$BIN_HOME" "$DESKTOP_DIR" "$ICON_DIR" "$LOG_DIR"
 
 "$PYTHON_BIN" -m venv --system-site-packages "$VENV_DIR"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip
@@ -103,17 +129,44 @@ mkdir -p "$APP_DIR" "$BIN_HOME" "$DESKTOP_DIR" "$ICON_DIR"
 ln -sfn "$VENV_DIR/bin/watercooler" "$BIN_HOME/watercooler"
 install_icon
 
+cat > "$DESKTOP_LAUNCHER" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_DIR="\${XDG_STATE_HOME:-\$HOME/.local/state}/watercooler"
+LOG_FILE="\$LOG_DIR/watercooler.log"
+LOCK_FILE="\$LOG_DIR/watercooler-desktop.lock"
+
+mkdir -p "\$LOG_DIR"
+export PYTHONUNBUFFERED=1
+
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"\$LOCK_FILE"
+    if ! flock -n 9; then
+        printf '%s WaterCooler is already running from the desktop launcher.\n' "\$(date --iso-8601=seconds 2>/dev/null || date)" >> "\$LOG_FILE"
+        exit 0
+    fi
+fi
+
+{
+    printf '\n[%s] Starting WaterCooler desktop session.\n' "\$(date --iso-8601=seconds 2>/dev/null || date)"
+    exec "$VENV_DIR/bin/watercooler" --tray
+} >> "\$LOG_FILE" 2>&1
+EOF
+chmod 0755 "$DESKTOP_LAUNCHER"
+
 cat > "$DESKTOP_DIR/watercooler.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=WaterCooler
 Comment=Control CoolingSystem BLE water cooler devices
-Exec=$VENV_DIR/bin/watercooler
-Icon=watercooler
-Terminal=true
+Exec=$DESKTOP_LAUNCHER
+Icon=$ICON_DIR/watercooler.svg
+Terminal=false
 Categories=Utility;HardwareSettings;
 StartupNotify=false
 EOF
+chmod 0644 "$DESKTOP_DIR/watercooler.desktop"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
@@ -131,6 +184,8 @@ else
     SERVICE_INSTALL_COMMAND="curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user-service.sh | bash"
 fi
 
+TRAY_STATUS="$(check_tray_support)"
+
 cat <<EOF
 Installed WaterCooler.
 
@@ -142,6 +197,15 @@ Command:
 
 Desktop entry:
   $DESKTOP_DIR/watercooler.desktop
+
+Desktop launcher:
+  $DESKTOP_LAUNCHER
+
+Log file:
+  $LOG_FILE
+
+Tray support:
+  $TRAY_STATUS
 
 Run once interactively before registering the background service:
   $BIN_HOME/watercooler

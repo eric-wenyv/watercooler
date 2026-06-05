@@ -36,15 +36,18 @@ curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts
 - 命令：`~/.local/bin/watercooler`
 - 桌面启动器：`~/.local/share/applications/watercooler.desktop`
 - 图标：`~/.local/share/icons/hicolor/scalable/apps/watercooler.svg`
+- 桌面启动日志：`~/.local/state/watercooler/watercooler.log`
 - 独立虚拟环境：`~/.local/share/watercooler/venv`
 
 ### 2. 交互式运行一次
 
-从终端或应用菜单运行一次 WaterCooler，以便选择 BLE 设备：
+先从终端运行一次 WaterCooler，以便选择 BLE 设备：
 
 ```bash
 watercooler
 ```
+
+保存设备后，桌面启动器会在无终端窗口的后台启动 WaterCooler，为这次运行启用托盘，并把输出追加到桌面启动日志。如果只扫描到一个水冷设备，从桌面启动时也可以自动选择它。
 
 选中的设备和 LED 设置会保存到：
 
@@ -58,6 +61,12 @@ watercooler
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eric-wenyv/watercooler/main/scripts/install-user-service.sh | bash
+```
+
+服务会禁用托盘，并把输出写入：
+
+```text
+~/.local/state/watercooler/watercooler.service.log
 ```
 
 ### 4. 卸载
@@ -84,4 +93,6 @@ python -m watercooler
 
 ## 补充说明
 
-如果 WaterCooler 以后台 systemd 用户服务运行，请保持托盘支持关闭。如果你希望使用托盘菜单，请从桌面会话中启动 `watercooler`，而不是使用后台服务。
+托盘图标需要 Pillow 以及系统 GTK/AppIndicator 绑定。安装脚本会检测这些绑定，并在安装结束时输出托盘支持状态。GNOME 用户可能还需要启用 AppIndicator/KStatusNotifierItem shell 扩展。
+
+可以用 `watercooler --tray` 为前台运行强制启用托盘，或用 `watercooler --no-tray` 进行类似服务的无托盘运行。如果 WaterCooler 以后台 systemd 用户服务运行，请保持托盘支持关闭。
